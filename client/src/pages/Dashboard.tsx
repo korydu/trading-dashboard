@@ -320,10 +320,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Attribution */}
-        <div className="pt-1 pb-2">
-          <PerplexityAttribution />
-        </div>
       </div>
     </div>
   );
