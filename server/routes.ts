@@ -344,6 +344,10 @@ function computeScores(data: any) {
 }
 
 export async function registerRoutes(server: Server, app: Express) {
+  app.get("/healthz", (_req, res) => {
+    res.status(200).json({ ok: true, service: "trading-dashboard" });
+  });
+
   app.get("/api/market-data", async (_req, res) => {
     try {
       const data = await getMarketData();
