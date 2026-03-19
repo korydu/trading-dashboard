@@ -348,7 +348,7 @@ export async function registerRoutes(server: Server, app: Express) {
     try {
       const data = await getMarketData();
       const scores = computeScores(data);
-      res.json({
+      return res.json({
         ...scores,
         quotes: data.quotes,
         spyHistory: data.spyHistory,
@@ -357,7 +357,8 @@ export async function registerRoutes(server: Server, app: Express) {
         lastUpdated: data.fetchedAt,
       });
     } catch (err: any) {
-      res.status(500).json({ error: "Failed to fetch market data" });
+      console.error("/api/market-data failed:", err);
+      return res.status(500).json({ error: "Failed to fetch market data", detail: err?.message || String(err) });
     }
   });
 

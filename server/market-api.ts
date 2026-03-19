@@ -1,7 +1,4 @@
-// server/market-api.ts
-// Fetches live market data from Alpha Vantage (free tier)
-
-const API_KEY = process.env.ALPHA_VANTAGE_KEY || "demo";
+import yahooFinance from "yahoo-finance2";
 
 export interface Quote {
   price: number;
@@ -22,8 +19,36 @@ interface HistoryPoint {
   close: number;
 }
 
+interface YahooRecord {
+  open?: number | null;
+  high?: number | null;
+  low?: number | null;
+  close?: number | null;
+  volume?: number | null;
+  date?: Date;
+}
+
 const cache = new Map<string, { data: any; fetchedAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
+
+const SYMBOL_MAP: Record<string, string> = {
+  SPY: "SPY",
+  QQQ: "QQQ",
+  XLK: "XLK",
+  XLF: "XLF",
+  XLE: "XLE",
+  XLV: "XLV",
+  XLI: "XLI",
+  XLY: "XLY",
+  XLP: "XLP",
+  XLU: "XLU",
+  XLB: "XLB",
+  XLRE: "XLRE",
+  XLC: "XLC",
+  VIX: "^VIX",
+  DXY: "DX-Y.NYB",
+  TNX: "^TNX",
+};
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
@@ -35,12 +60,34 @@ function setCache(key: string, data: any) {
   cache.set(key, { data, fetchedAt: Date.now() });
 }
 
-async function fetchJson(url: string) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Alpha Vantage request failed: ${res.status} ${res.statusText}`);
-  }
-  return res.json() as Promise<any>;
+function toDateString(value?: Date) {
+  return value ? value.toISOString().slice(0, 10) : "";
+}
+
+function normalizeQuote(summary: any): Quote {
+  const price = summary.regularMarketPrice ?? summary.postMarketPrice ?? summary.preMarketPrice ?? 0;
+  const prevClose = summary.regularMarketPreviousClose ?? summary.previousClose ?? 0;
+  const change = summary.regularMarketChange ?? (price - prevClose);
+  const rawChangePct = summary.regularMarketChangePercent;
+  const changePct = typeof rawChangePct === "number"
+    ? rawChangePct
+    : prevClose
+      ? (change / prevClose) * 100
+      : 0;
+
+  return {
+    price: Number(price) || 0,
+    change: Number(change) || 0,
+    changePct: Number(changePct) || 0,
+    prevClose: Number(prevClose) || 0,
+    high: Number(summary.regularMarketDayHigh ?? price) || 0,
+    low: Number(summary.regularMarketDayLow ?? price) || 0,
+    open: Number(summary.regularMarketOpen ?? prevClose ?? price) || 0,
+    volume: Number(summary.regularMarketVolume) || 0,
+    avgVolume: Number(summary.averageDailyVolume3Month ?? summary.averageDailyVolume10Day) || 0,
+    yearHigh: Number(summary.fiftyTwoWeekHigh ?? price) || 0,
+    yearLow: Number(summary.fiftyTwoWeekLow ?? price) || 0,
+  };
 }
 
 async function fetchQuote(symbol: string): Promise<Quote | null> {
@@ -48,29 +95,16 @@ async function fetchQuote(symbol: string): Promise<Quote | null> {
   if (cached) return cached;
 
   try {
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
-    const json = await fetchJson(url);
-    const q = json["Global Quote"];
-    if (!q) return null;
-
-    const quote: Quote = {
-      price: parseFloat(q["05. price"]) || 0,
-      change: parseFloat(q["09. change"]) || 0,
-      changePct: parseFloat(q["10. change percent"]?.replace("%", "")) || 0,
-      prevClose: parseFloat(q["08. previous close"]) || 0,
-      high: parseFloat(q["03. high"]) || 0,
-      low: parseFloat(q["04. low"]) || 0,
-      open: parseFloat(q["02. open"]) || 0,
-      volume: parseInt(q["06. volume"]) || 0,
-      avgVolume: 0,
-      yearHigh: 0,
-      yearLow: 0,
-    };
-
+    const yahooSymbol = SYMBOL_MAP[symbol] ?? symbol;
+    const summary = await yahooFinance.quoteSummary(yahooSymbol, {
+      modules: ["price", "summaryDetail"],
+    });
+    const merged = { ...(summary.price || {}), ...(summary.summaryDetail || {}) };
+    const quote = normalizeQuote(merged);
     setCache(`quote:${symbol}`, quote);
     return quote;
   } catch (err) {
-    console.error(`Failed to fetch quote for ${symbol}:`, err);
+    console.error(`Failed to fetch Yahoo quote for ${symbol}:`, err);
     return null;
   }
 }
@@ -80,46 +114,51 @@ async function fetchDailyHistory(symbol: string): Promise<HistoryPoint[]> {
   if (cached) return cached;
 
   try {
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${API_KEY}`;
-    const json = await fetchJson(url);
-    const timeSeries = json["Time Series (Daily)"];
-    if (!timeSeries) return [];
+    const yahooSymbol = SYMBOL_MAP[symbol] ?? symbol;
+    const rows = await yahooFinance.chart(yahooSymbol, {
+      period1: new Date(Date.now() - 370 * 24 * 60 * 60 * 1000),
+      interval: "1d",
+    });
 
-    const history: HistoryPoint[] = Object.entries(timeSeries)
-      .map(([date, vals]: [string, any]) => ({
-        date,
-        close: parseFloat(vals["4. close"]) || 0,
+    const quotes = (rows.quotes || []) as YahooRecord[];
+    const history = quotes
+      .filter((row) => row.date && typeof row.close === "number")
+      .map((row) => ({
+        date: toDateString(row.date),
+        close: Number(row.close) || 0,
       }))
+      .filter((row) => row.date)
       .sort((a, b) => a.date.localeCompare(b.date));
 
     setCache(`history:${symbol}`, history);
     return history;
   } catch (err) {
-    console.error(`Failed to fetch history for ${symbol}:`, err);
+    console.error(`Failed to fetch Yahoo history for ${symbol}:`, err);
     return [];
   }
 }
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 export async function fetchAllMarketData() {
-  const tickers = ["SPY", "QQQ", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC"];
-  const quotes: Record<string, Quote> = {};
+  const tickers = ["SPY", "QQQ", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC", "VIX", "DXY", "TNX"];
 
-  for (const ticker of tickers) {
-    const quote = await fetchQuote(ticker);
-    if (quote) quotes[ticker] = quote;
-    await sleep(13000);
-  }
+  const quoteResults = await Promise.all(
+    tickers.map(async (ticker) => [ticker, await fetchQuote(ticker)] as const),
+  );
 
-  const vixQuote = await fetchQuote("VIX");
-  if (vixQuote) quotes["VIX"] = vixQuote;
-  await sleep(13000);
+  const quotes = Object.fromEntries(
+    quoteResults
+      .filter(([, quote]) => quote)
+      .map(([ticker, quote]) => [ticker, quote]),
+  ) as Record<string, Quote>;
 
-  if (!quotes["DXY"]) {
-    quotes["DXY"] = {
+  const [spyHistory, qqqHistory, vixHistory] = await Promise.all([
+    fetchDailyHistory("SPY"),
+    fetchDailyHistory("QQQ"),
+    fetchDailyHistory("VIX"),
+  ]);
+
+  if (!quotes.DXY) {
+    quotes.DXY = {
       price: 100,
       change: 0,
       changePct: 0,
@@ -134,8 +173,8 @@ export async function fetchAllMarketData() {
     };
   }
 
-  if (!quotes["TNX"]) {
-    quotes["TNX"] = {
+  if (!quotes.TNX) {
+    quotes.TNX = {
       price: 4.0,
       change: 0,
       changePct: 0,
@@ -150,13 +189,23 @@ export async function fetchAllMarketData() {
     };
   }
 
-  const spyHistory = await fetchDailyHistory("SPY");
-  await sleep(13000);
-  const qqqHistory = await fetchDailyHistory("QQQ");
-  await sleep(13000);
-  const vixHistory = await fetchDailyHistory("VIX");
+  if (!quotes.VIX) {
+    quotes.VIX = {
+      price: 20,
+      change: 0,
+      changePct: 0,
+      prevClose: 20,
+      high: 20,
+      low: 20,
+      open: 20,
+      volume: 0,
+      avgVolume: 0,
+      yearHigh: 30,
+      yearLow: 12,
+    };
+  }
 
-  const vixPrice = quotes["VIX"]?.price || 20;
+  const vixPrice = quotes.VIX?.price || 20;
   const sentiment = vixPrice > 30 ? "bearish" : vixPrice > 20 ? "neutral" : "bullish";
 
   return {
