@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Bloomberg Terminal Dark Theme — always dark */
+:root {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+  --background: 218 25% 8%;
+  --foreground: 210 20% 90%;
+  --border: 216 18% 16%;
+  --card: 218 22% 10%;
+  --card-foreground: 210 20% 90%;
+  --card-border: 216 18% 14%;
+  --sidebar: 218 25% 9%;
+  --sidebar-foreground: 210 20% 90%;
+  --sidebar-border: 216 18% 14%;
+  --sidebar-primary: 142 70% 45%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 216 18% 16%;
+  --sidebar-accent-foreground: 210 20% 90%;
+  --sidebar-ring: 142 70% 45%;
+  --popover: 218 22% 12%;
+  --popover-foreground: 210 20% 90%;
+  --popover-border: 216 18% 16%;
+  --primary: 142 70% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 216 18% 16%;
+  --secondary-foreground: 210 20% 85%;
+  --muted: 216 14% 18%;
+  --muted-foreground: 210 10% 55%;
+  --accent: 216 18% 14%;
+  --accent-foreground: 210 20% 90%;
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 216 18% 20%;
+  --ring: 142 70% 45%;
+  --chart-1: 142 70% 45%;
+  --chart-2: 38 92% 50%;
+  --chart-3: 0 72% 50%;
+  --chart-4: 200 80% 55%;
+  --chart-5: 280 65% 60%;
+  --font-sans: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-serif: Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --radius: .375rem;
+  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.3);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.3);
+  --shadow-sm: 0px 2px 4px 0px hsl(0 0% 0% / 0.3);
+  --shadow: 0px 2px 6px 0px hsl(0 0% 0% / 0.3);
+  --shadow-md: 0px 4px 8px 0px hsl(0 0% 0% / 0.3);
+  --shadow-lg: 0px 8px 16px 0px hsl(0 0% 0% / 0.3);
+  --shadow-xl: 0px 12px 24px 0px hsl(0 0% 0% / 0.3);
+  --shadow-2xl: 0px 16px 32px 0px hsl(0 0% 0% / 0.3);
+  --tracking-normal: 0.02em;
+  --spacing: 0.25rem;
+
+  /* Terminal-specific colors */
+  --terminal-green: #00d26a;
+  --terminal-red: #ff4757;
+  --terminal-amber: #ffa502;
+  --terminal-blue: #3498db;
+  --terminal-cyan: #00d2d3;
+  --terminal-dim: #4a5568;
+  --terminal-border: #1e2d3d;
+  --terminal-surface: #0d1b2a;
+  --terminal-panel: #112240;
+}
+
+.dark {
+  /* Already dark by default */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: 0.02em;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Ticker tape animation */
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-scroll {
+  animation: tickerScroll 60s linear infinite;
+}
+
+.ticker-scroll:hover {
+  animation-play-state: paused;
+}
+
+/* Pulse animation for live indicator */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.live-pulse {
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+/* Score ring animation */
+@keyframes scoreReveal {
+  from { stroke-dashoffset: 314; }
+}
+
+.score-ring {
+  animation: scoreReveal 1.5s ease-out forwards;
+}
+
+/* Alert banner flash */
+@keyframes alertFlash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.alert-flash {
+  animation: alertFlash 3s ease-in-out infinite;
+}
